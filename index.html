@@ -3,32 +3,49 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weather</title>
+<title>Weather — Clima en tiempo real</title>
+<meta name="description" content="App de clima en tiempo real con fondos animados que reaccionan a la condición actual, pronóstico horario, calidad del aire e índice UV.">
+<meta name="theme-color" content="#0a0a12">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Weather — Clima en tiempo real">
+<meta property="og:description" content="Fondos cinematográficos animados que reaccionan al clima, pronóstico horario interpolado, calidad del aire e índice UV.">
+<meta property="og:url" content="https://weather-app-santiago.vercel.app/">
+<meta name="twitter:card" content="summary_large_image">
+
 <link rel="stylesheet" href="style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@200;300;400;500;600&family=Geist+Mono:wght@300;400&display=swap" rel="stylesheet">
 </head>
 <body>
 
-<canvas id="scene"></canvas>
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<!-- Estado de carga y errores. aria-live para que los lectores de pantalla
+     anuncien el resultado de una búsqueda sin tener que buscarlo. -->
+<div class="status" id="status" role="status" aria-live="polite">
+  <span class="status__spin" aria-hidden="true"></span>
+  <span id="statusText"></span>
+</div>
 
 <div id="app">
   <section id="hero">
     <div id="topbar">
       <div class="lw" id="langWrap">
-        <button class="lb" id="langBtn"><span id="langFlag">🌐</span><span id="langName">EN</span><span class="la">›</span></button>
+        <button class="lb" id="langBtn" aria-label="Cambiar idioma" aria-haspopup="listbox"><span id="langFlag">🌐</span><span id="langName">EN</span><span class="la">›</span></button>
         <div class="ld" id="langDropdown"></div>
       </div>
       <div class="sw">
-        <input class="si" id="searchInput" placeholder="Search any city..." autocomplete="off">
-        <button class="sb" id="searchBtn">
+        <input class="si" id="searchInput" placeholder="Search any city..." autocomplete="off"
+               aria-label="Buscar ciudad" role="combobox" aria-expanded="false" aria-controls="searchDropdown">
+        <button class="sb" id="searchBtn" aria-label="Buscar">
           <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.5" stroke="white" stroke-width="1.5"/><path d="M13 13L17 17" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
         </button>
         <div class="sd" id="searchDropdown"></div>
       </div>
       <div class="ut">
-        <button class="ub active" id="btnC">°C</button>
-        <button class="ub" id="btnF">°F</button>
+        <button class="ub active" id="btnC" aria-label="Grados Celsius" aria-pressed="true">°C</button>
+        <button class="ub" id="btnF" aria-label="Grados Fahrenheit" aria-pressed="false">°F</button>
       </div>
     </div>
 
@@ -71,9 +88,9 @@
     <!-- Hero hourly bar -->
     <div id="hero-hourly">
       <div class="hh-wrap">
-        <div class="hh-arrow" id="hhPrev">‹</div>
+        <button class="hh-arrow" id="hhPrev" aria-label="Horas anteriores">‹</button>
         <div class="hh-scroll" id="hhScroll"></div>
-        <div class="hh-arrow" id="hhNext">›</div>
+        <button class="hh-arrow" id="hhNext" aria-label="Horas siguientes">›</button>
       </div>
     </div>
 

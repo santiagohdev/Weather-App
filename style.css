@@ -263,3 +263,57 @@ svg.icon{fill:none;stroke:rgba(255,255,255,0.65);stroke-width:1.5;stroke-linecap
   .dd-grid{grid-template-columns:repeat(2,1fr);}
   .fc{grid-template-columns:46px 24px 1fr 30px 48px 30px 14px;}
 }
+/* ══════════════════════════════════
+   ESTADO: CARGA Y ERRORES
+══════════════════════════════════ */
+.status{
+  position:fixed; left:50%; top:22px; transform:translate(-50%,-140%);
+  display:flex; align-items:center; gap:9px;
+  padding:10px 18px; border-radius:999px;
+  background:rgba(12,12,20,.82);
+  border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(20px) saturate(160%);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  font-size:13px; letter-spacing:.01em; color:rgba(255,255,255,.92);
+  box-shadow:0 12px 40px rgba(0,0,0,.45);
+  opacity:0; pointer-events:none; z-index:120;
+  transition:transform .42s cubic-bezier(.16,1,.3,1), opacity .28s ease;
+}
+.status--load, .status--err{ transform:translate(-50%,0); opacity:1; }
+.status--err{
+  border-color:rgba(255,105,97,.42);
+  background:rgba(46,14,14,.86);
+  color:#ffd9d6;
+}
+
+.status__spin{
+  width:13px; height:13px; flex:none;
+  border:1.5px solid rgba(255,255,255,.22);
+  border-top-color:rgba(255,255,255,.9);
+  border-radius:50%;
+  animation:statusSpin .7s linear infinite;
+}
+.status--err .status__spin{ display:none; }
+@keyframes statusSpin{ to{ transform:rotate(360deg); } }
+
+/* Mientras carga, el bloque principal se atenúa: deja claro que los números
+   en pantalla son los anteriores y todavía no los nuevos. */
+body.is-loading #hero-center,
+body.is-loading #details{ opacity:.45; transition:opacity .2s ease; }
+
+.saved-item:focus-visible,
+.hh-arrow:focus-visible,
+.ub:focus-visible,
+.sb:focus-visible,
+.lb:focus-visible,
+.si:focus-visible{
+  outline:2px solid rgba(255,255,255,.75);
+  outline-offset:2px;
+}
+
+/* Respeta a quien pidió menos animación en el sistema. */
+@media (prefers-reduced-motion: reduce){
+  .status{ transition:none; }
+  .status__spin{ animation-duration:2s; }
+  *{ animation-duration:.01ms !important; animation-iteration-count:1 !important; }
+}

@@ -528,11 +528,13 @@ function getCondIcon(c,size=22){
 /* ══════════════════════════════════
    SUN ARC
 ══════════════════════════════════ */
-function animateSunArc(sunrise,sunset){
-  const now=new Date();
+function animateSunArc(sunrise,sunset,tz=0){
+  // "Ahora" tiene que medirse en el huso de la ciudad, si no el sol aparece
+  // en una posición del arco que no corresponde al lugar consultado.
+  const now=new Date(Date.now()+tz*1000);
   const [srH,srM]=sunrise.split(':').map(Number);
   const [ssH,ssM]=sunset.split(':').map(Number);
-  const srMin=srH*60+srM,ssMin=ssH*60+ssM,nowMin=now.getHours()*60+now.getMinutes();
+  const srMin=srH*60+srM,ssMin=ssH*60+ssM,nowMin=now.getUTCHours()*60+now.getUTCMinutes();
   const pct=Math.min(Math.max((nowMin-srMin)/(ssMin-srMin),0),1);
   const tot=ssMin-srMin;
   document.getElementById('dayLength').textContent=`${t('daylength')}: ${Math.floor(tot/60)}h ${tot%60}m`;
@@ -572,13 +574,13 @@ function render(name){
   document.getElementById('mainL').textContent='L '+td(d.l);
 
   document.getElementById('diFeels').textContent=td(d.feels);
-  document.getElementById('diFeelsSub').textContent=Math.abs(d.t-d.feels)<=2?'Similar':d.feels<d.t?'Colder':'Warmer';
+  document.getElementById('diFeelsSub').textContent=Math.abs(d.t-d.feels)<=2?t('similar'):d.feels<d.t?t('colder'):t('warmer');
   document.getElementById('diHum').textContent=d.hum+'%';
-  document.getElementById('diHumSub').textContent=d.hum<40?'Dry':d.hum<60?'Comfortable':'Humid';
+  document.getElementById('diHumSub').textContent=d.hum<40?t('dry'):d.hum<60?t('comfortable'):t('humid');
   document.getElementById('diWind').textContent=wSpeed(d.wind);
-  document.getElementById('diWindSub').textContent=d.windDir+' · '+(d.wind<10?'Calm':d.wind<30?'Moderate':'Strong');
+  document.getElementById('diWindSub').textContent=d.windDir+' · '+(d.wind<10?t('calm'):d.wind<30?t('moderate'):t('strong'));
   document.getElementById('diVis').textContent=wDist(d.vis);
-  document.getElementById('diVisSub').textContent=d.vis>=10?'Excellent':d.vis>=5?'Good':'Poor';
+  document.getElementById('diVisSub').textContent=d.vis>=10?t('excellent'):d.vis>=5?t('good'):t('poor');
 
   document.getElementById('hourlyRow').innerHTML=d.hourly.map((h,i)=>`
     <div class="hi${i===0?' now':''}">
@@ -602,19 +604,26 @@ function render(name){
   document.getElementById('dayDetail').style.display='none';
   bindForecastClicks();
 
-  document.getElementById('aqiNum').textContent=d.aqi||'—';
-  document.getElementById('aqiWord').textContent=d.aqi?(d.aqi<=50?'Good':d.aqi<=100?'Moderate':d.aqi<=150?'Sensitive':d.aqi<=200?'Unhealthy':'Hazardous'):'—';
-  if(d.aqi) setTimeout(()=>{document.getElementById('aqiDot').style.left=Math.min(d.aqi/400*100,100)+'%';},300);
+  // AQI 0 es un valor válido, así que hay que comparar contra null y no usar ||
+  const hayAqi=d.aqi!=null;
+  document.getElementById('aqiNum').textContent=hayAqi?d.aqi:'—';
+  document.getElementById('aqiWord').textContent=hayAqi
+    ?(d.aqi<=50?t('aqiGood'):d.aqi<=100?t('aqiModerate'):d.aqi<=150?t('aqiSensitive')
+      :d.aqi<=200?t('aqiUnhealthy'):t('aqiHazardous')):'—';
+  if(hayAqi) setTimeout(()=>{document.getElementById('aqiDot').style.left=Math.min(d.aqi/400*100,100)+'%';},300);
 
   document.getElementById('sunriseVal').textContent=d.sunrise;
   document.getElementById('sunsetVal').textContent=d.sunset;
-  animateSunArc(d.sunrise,d.sunset);
+  animateSunArc(d.sunrise,d.sunset,d.tz);
 
-  const uvW=['','Low','Low','Moderate','Moderate','Moderate','High','High','Very high','Very high','Extreme'];
-  const uvS=['','No protection','No protection','SPF 30+','SPF 30+','SPF 30+','SPF 50+','SPF 50+','Limit exposure','Limit exposure','Stay indoors'];
-  document.getElementById('uvNum').textContent=d.uv||'—';
-  document.getElementById('uvWord').textContent=uvW[Math.min(d.uv||0,10)];
-  document.getElementById('uvSub').textContent=uvS[Math.min(d.uv||0,10)];
+  // Escala oficial OMS: 0-2 bajo, 3-5 moderado, 6-7 alto, 8-10 muy alto, 11+ extremo
+  const hayUv=d.uv!=null;
+  const uvNivel=v=>v<3?['uvLow','uvNoProt']:v<6?['uvModerate','uvSpf30']
+                   :v<8?['uvHigh','uvSpf50']:v<11?['uvVeryHigh','uvLimit']
+                   :['uvExtreme','uvIndoors'];
+  document.getElementById('uvNum').textContent=hayUv?d.uv:'—';
+  document.getElementById('uvWord').textContent=hayUv?t(uvNivel(d.uv)[0]):'—';
+  document.getElementById('uvSub').textContent=hayUv?t(uvNivel(d.uv)[1]):'—';
 
   document.querySelectorAll('.saved-item').forEach(el=>el.classList.toggle('active',el.dataset.city===name));
 
@@ -622,7 +631,8 @@ function render(name){
   document.getElementById('hs-feels').textContent = td(d.feels);
   document.getElementById('hs-wind').textContent = wSpeed(d.wind) + ' ' + d.windDir;
   const nextRain = d.hourly.find(h=>h.pre>0);
-  document.getElementById('hs-rain').textContent = nextRain ? nextRain.pre+'% at '+nextRain.t : 'None expected';
+  document.getElementById('hs-rain').textContent = nextRain
+    ? `${nextRain.pre}% ${t('at')} ${nextRain.t}` : t('noRain');
   document.getElementById('hs-hum').textContent = d.hum+'%';
 
   // ── HERO HOURLY BAR ──
@@ -791,20 +801,32 @@ function bindForecastClicks(){
 /* ══════════════════════════════════
    SAVED LIST
 ══════════════════════════════════ */
-const savedCities=['Buenos Aires','New York','London','Tokyo','Sydney','Reykjavik'];
+let savedCities=['Buenos Aires','New York','London','Tokyo','Sydney','Reykjavik'];
+
 function renderSavedList(){
   document.getElementById('savedList').innerHTML=savedCities.map(c=>{
     const data=CITIES[c];
-    return`<div class="saved-item" data-city="${c}">
+    return`<div class="saved-item" data-city="${c}" role="button" tabindex="0"
+      aria-label="${c}">
       <span class="si-city">${c}</span>
       <span class="si-temp">${data?td(data.t):'—'}</span>
     </div>`;
   }).join('');
-  document.getElementById('savedList').addEventListener('click',e=>{
-    const item=e.target.closest('.saved-item');
-    if(item)fetchWeather(item.dataset.city);
-  });
 }
+
+/* El listener va una sola vez y por delegación. Antes se registraba dentro de
+   renderSavedList(), que corre en cada fetch: los handlers se acumulaban y un
+   clic terminaba disparando una petición por cada búsqueda previa. */
+const listaGuardados=document.getElementById('savedList');
+listaGuardados.addEventListener('click',e=>{
+  const item=e.target.closest('.saved-item');
+  if(item)fetchWeather(item.dataset.city);
+});
+listaGuardados.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const item=e.target.closest('.saved-item');
+  if(item){e.preventDefault();fetchWeather(item.dataset.city);}
+});
 
 /* ══════════════════════════════════
    SEARCH
@@ -842,8 +864,19 @@ document.getElementById('searchBtn').addEventListener('click',()=>{
 /* ══════════════════════════════════
    UNITS
 ══════════════════════════════════ */
-document.getElementById('btnC').addEventListener('click',()=>{unit='c';document.getElementById('btnC').classList.add('active');document.getElementById('btnF').classList.remove('active');if(currentCity)render(currentCity);});
-document.getElementById('btnF').addEventListener('click',()=>{unit='f';document.getElementById('btnF').classList.add('active');document.getElementById('btnC').classList.remove('active');if(currentCity)render(currentCity);});
+document.getElementById('btnC').addEventListener('click',()=>{setUnidad('c');});
+document.getElementById('btnF').addEventListener('click',()=>{setUnidad('f');});
+
+function setUnidad(u){
+  unit=u;
+  const c=document.getElementById('btnC'), f=document.getElementById('btnF');
+  c.classList.toggle('active',u==='c'); f.classList.toggle('active',u==='f');
+  c.setAttribute('aria-pressed',String(u==='c'));
+  f.setAttribute('aria-pressed',String(u==='f'));
+  if(currentCity)render(currentCity);
+  renderSavedList();          // los chips también muestran temperatura
+  guardarPrefs();
+}
 
 /* ══════════════════════════════════
    LANGUAGES
@@ -872,7 +905,47 @@ const STR={
   fr:{search:'Rechercher...',feels:'Ressenti',hum:'Humidité',wind:'Vent',vis:'Visibilité',hourly:'Heure par heure',day7:'7 jours',aqi:"Qualité de l'air",sun:'Soleil',sunrise:'Lever',sunset:'Coucher',daylength:'Durée du jour',uv:'Indice UV',scroll:'défiler'},
   de:{search:'Stadt suchen...',feels:'Gefühlt',hum:'Luftfeuchte',wind:'Wind',vis:'Sichtweite',hourly:'Stündlich',day7:'7 Tage',aqi:'Luftqualität',sun:'Sonne',sunrise:'Aufgang',sunset:'Untergang',daylength:'Tageslänge',uv:'UV-Index',scroll:'scrollen'},
 };
-function t(key){return(STR[currentLang]||STR.en)[key]||STR.en[key];}
+/* Claves nuevas: descripciones, errores y escalas que antes estaban escritas
+   a mano en inglés dentro del render. Solo se cargan en en/es; para los otros
+   26 idiomas t() ya cae a inglés en vez de mostrar undefined. */
+Object.assign(STR.en,{
+  now:'Now',today:'Today',at:'at',noRain:'None expected',
+  similar:'Similar',colder:'Colder',warmer:'Warmer',
+  dry:'Dry',comfortable:'Comfortable',humid:'Humid',
+  calm:'Calm',moderate:'Moderate',strong:'Strong',
+  excellent:'Excellent',good:'Good',poor:'Poor',
+  aqiGood:'Good',aqiModerate:'Moderate',aqiSensitive:'Sensitive',
+  aqiUnhealthy:'Unhealthy',aqiHazardous:'Hazardous',
+  uvLow:'Low',uvModerate:'Moderate',uvHigh:'High',uvVeryHigh:'Very high',uvExtreme:'Extreme',
+  uvNoProt:'No protection needed',uvSpf30:'SPF 30+',uvSpf50:'SPF 50+',
+  uvLimit:'Limit midday exposure',uvIndoors:'Avoid being outside',
+  loading:'Loading…',locating:'Finding your location…',
+  errNotFound:'Couldn’t find "%s"',
+  errKey:'Invalid API key',
+  errLimit:'Too many requests — try again in a minute',
+  errOffline:'No internet connection',
+  errGeneric:'Something went wrong. Try again.'
+});
+Object.assign(STR.es,{
+  now:'Ahora',today:'Hoy',at:'a las',noRain:'Sin lluvia',
+  similar:'Similar',colder:'Más frío',warmer:'Más cálido',
+  dry:'Seco',comfortable:'Agradable',humid:'Húmedo',
+  calm:'Calmo',moderate:'Moderado',strong:'Fuerte',
+  excellent:'Excelente',good:'Buena',poor:'Baja',
+  aqiGood:'Buena',aqiModerate:'Moderada',aqiSensitive:'Sensibles',
+  aqiUnhealthy:'Insalubre',aqiHazardous:'Peligrosa',
+  uvLow:'Bajo',uvModerate:'Moderado',uvHigh:'Alto',uvVeryHigh:'Muy alto',uvExtreme:'Extremo',
+  uvNoProt:'Sin protección',uvSpf30:'FPS 30+',uvSpf50:'FPS 50+',
+  uvLimit:'Evitá el mediodía',uvIndoors:'No te expongas al sol',
+  loading:'Cargando…',locating:'Buscando tu ubicación…',
+  errNotFound:'No encontramos "%s"',
+  errKey:'La clave de la API no es válida',
+  errLimit:'Demasiadas consultas — probá en un minuto',
+  errOffline:'Sin conexión a internet',
+  errGeneric:'Algo falló. Intentá de nuevo.'
+});
+
+function t(key){return(STR[currentLang]||STR.en)[key]||STR.en[key]||key;}
 let currentLang='en';
 function applyLang(){
   // UI labels
@@ -934,6 +1007,10 @@ langDropdown.addEventListener('click',e=>{
   document.getElementById('langName').textContent=lang.code.toUpperCase();
   langDropdown.classList.remove('open');langWrap.classList.remove('open');
   applyLang();
+  document.documentElement.lang=currentLang;
+  guardarPrefs();
+  // el idioma viaja en la petición: hay que releer para traducir la condición
+  if(currentCity)fetchWeather(currentCity);
 });
 document.addEventListener('click',e=>{if(!e.target.closest('.lw')){langDropdown.classList.remove('open');langWrap.classList.remove('open');}});
 
@@ -943,24 +1020,85 @@ document.addEventListener('click',e=>{if(!e.target.closest('.lw')){langDropdown.
 const API_KEY='dc4e968c5a4b1a217355da34671b70f5';
 const CITIES={};
 
-async function fetchWeather(cityName){
-  try{
-    const [rA,rF]=await Promise.all([
-      fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(cityName)}&appid=${API_KEY}&units=metric&lang=${currentLang}`),
-      fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(cityName)}&appid=${API_KEY}&units=metric&lang=${currentLang}`)
-    ]);
-    const actual=await rA.json();
-    const forecast=await rF.json();
-    if(actual.cod!==200){console.warn('City not found:',cityName);return;}
-    const realName=actual.name;
-    CITIES[realName]=mapAPIData(actual,forecast);
-    if(!savedCities.includes(realName)&&savedCities.length<14)savedCities.push(realName);
-    renderSavedList();
-    render(realName);
-  }catch(err){console.error('Error:',err);}
+const OWM='https://api.openweathermap.org/data/2.5';
+
+/* Convierte PM2.5 (µg/m³) al índice AQI de la EPA (escala 0-500),
+   que es la que dibuja la barra del panel de calidad del aire. */
+function aqiFromPM25(pm){
+  const tramos=[[0,12,0,50],[12.1,35.4,51,100],[35.5,55.4,101,150],
+                [55.5,150.4,151,200],[150.5,250.4,201,300],
+                [250.5,350.4,301,400],[350.5,500.4,401,500]];
+  for(const [cLo,cHi,iLo,iHi] of tramos){
+    if(pm<=cHi) return Math.round((iHi-iLo)/(cHi-cLo)*(pm-cLo)+iLo);
+  }
+  return 500;
 }
 
-function mapAPIData(actual,forecast){
+/* AQI y UV son endpoints aparte y por coordenadas. Si alguno falla, la app
+   sigue funcionando: el panel queda en "—" en vez de romper todo el render. */
+async function fetchExtras(lat,lon){
+  const extras={};
+  const [aire,uv]=await Promise.allSettled([
+    fetch(`${OWM}/air_pollution?lat=${lat}&lon=${lon}&appid=${API_KEY}`),
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=uv_index`)
+  ]);
+  try{
+    if(aire.status==='fulfilled'&&aire.value.ok){
+      const j=await aire.value.json();
+      const pm=j.list?.[0]?.components?.pm2_5;
+      if(pm!=null) extras.aqi=aqiFromPM25(pm);
+    }
+  }catch{}
+  try{
+    if(uv.status==='fulfilled'&&uv.value.ok){
+      const j=await uv.value.json();
+      const v=j.current?.uv_index;
+      if(v!=null) extras.uv=Math.round(v*10)/10;
+    }
+  }catch{}
+  return extras;
+}
+
+let cargando=false;
+async function fetchWeather(cityName){
+  if(cargando) return;
+  cargando=true;
+  setEstado('cargando');
+  try{
+    const q=encodeURIComponent(cityName);
+    const [rA,rF]=await Promise.all([
+      fetch(`${OWM}/weather?q=${q}&appid=${API_KEY}&units=metric&lang=${currentLang}`),
+      fetch(`${OWM}/forecast?q=${q}&appid=${API_KEY}&units=metric&lang=${currentLang}`)
+    ]);
+
+    if(rA.status===404){setEstado('error',t('errNotFound').replace('%s',cityName));return;}
+    if(rA.status===401){setEstado('error',t('errKey'));return;}
+    if(rA.status===429){setEstado('error',t('errLimit'));return;}
+    if(!rA.ok||!rF.ok){setEstado('error',t('errGeneric'));return;}
+
+    const actual=await rA.json();
+    const forecast=await rF.json();
+    if(String(actual.cod)!=='200'){setEstado('error',t('errNotFound').replace('%s',cityName));return;}
+
+    const extras=await fetchExtras(actual.coord.lat,actual.coord.lon);
+    const realName=actual.name;
+    CITIES[realName]=mapAPIData(actual,forecast,extras);
+    if(!savedCities.includes(realName)&&savedCities.length<14)savedCities.push(realName);
+    guardarPrefs();
+    renderSavedList();
+    render(realName);
+    setEstado('ok');
+  }catch(err){
+    console.error(err);
+    setEstado('error',navigator.onLine?t('errGeneric'):t('errOffline'));
+  }finally{
+    cargando=false;
+  }
+}
+
+function mapAPIData(actual,forecast,extra={}){
+  const tz=actual.timezone||0;          // offset de la ciudad, en segundos
+  const nowCity=Date.now()+tz*1000;     // "ahora" visto desde esa ciudad
   function owmType(id){
     if(id>=200&&id<300)return'storm';if(id>=300&&id<600)return'rain';
     if(id>=600&&id<700)return'snow';if(id>=700&&id<800)return'fog';
@@ -972,12 +1110,16 @@ function mapAPIData(actual,forecast){
     if(id>=700&&id<800)return'fog';if(id===800)return'clear';
     if(id===801||id===802)return'pcloudy';return'cloudy';
   }
-  function ts(unix){const d=new Date(unix*1000);return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');}
+  // La hora se formatea en el huso de la ciudad consultada, no en el del navegador.
+  // OWM devuelve el offset en segundos, así que corremos el timestamp y leemos en UTC.
+  function ts(unix){
+    const d=new Date((unix+tz)*1000);
+    return d.getUTCHours()+':'+String(d.getUTCMinutes()).padStart(2,'0');
+  }
 
   // Interpolate forecast list (every 3h) into 30-min steps
   const raw = forecast.list;
   const hourly = [];
-  const now = new Date();
 
   for(let i = 0; i < raw.length; i++) {
     const a = raw[i];
@@ -987,8 +1129,8 @@ function mapAPIData(actual,forecast){
     for(let s = 0; s < stepsPerSlot; s++) {
       if(i === raw.length - 1 && s > 0) break; // no extrapolation past last point
       const frac = s / stepsPerSlot;
-      const dt = new Date(a.dt * 1000 + s * 30 * 60 * 1000);
-      const diffMin = (dt - now) / 60000;
+      const dt = new Date((a.dt + tz) * 1000 + s * 30 * 60 * 1000);
+      const diffMin = (dt.getTime() - nowCity) / 60000;
 
       // skip entries more than 1 minute in the past
       if(diffMin < -1) continue;
@@ -1000,10 +1142,10 @@ function mapAPIData(actual,forecast){
         ? Math.round(a.pop * 100 + (b.pop * 100 - a.pop * 100) * frac)
         : Math.round(a.pop * 100);
 
-      const h = dt.getHours();
-      const m = dt.getMinutes();
+      const h = dt.getUTCHours();
+      const m = dt.getUTCMinutes();
       const isNow = hourly.length === 0;
-      const label = isNow ? 'Now' : h + ':' + String(m).padStart(2,'0');
+      const label = isNow ? t('now') : h + ':' + String(m).padStart(2,'0');
 
       hourly.push({
         t: label,
@@ -1013,13 +1155,28 @@ function mapAPIData(actual,forecast){
       });
     }
   }
-  const dayMap={};const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  // Nombres de día traducidos con Intl en vez de la lista fija en inglés.
+  // timeZone UTC porque el timestamp ya viene corrido al huso de la ciudad.
+  let diaCorto;
+  try{ diaCorto=new Intl.DateTimeFormat(currentLang,{weekday:'short',timeZone:'UTC'}); }
+  catch{ diaCorto=new Intl.DateTimeFormat('en',{weekday:'short',timeZone:'UTC'}); }
+  const dayMap={};
   forecast.list.forEach(item=>{
-    const date=new Date(item.dt*1000);const key=date.toDateString();
-    if(!dayMap[key]){dayMap[key]={d:dn[date.getDay()],c:owmIcon(item.weather[0].id),desc:item.weather[0].main,lo:item.main.temp_min,hi:item.main.temp_max,pct:Math.round(item.pop*100)};}
-    else{dayMap[key].lo=Math.min(dayMap[key].lo,item.main.temp_min);dayMap[key].hi=Math.max(dayMap[key].hi,item.main.temp_max);}
+    const date=new Date((item.dt+tz)*1000);
+    const key=date.toISOString().slice(0,10);
+    const pop=Math.round((item.pop||0)*100);
+    if(!dayMap[key]){
+      dayMap[key]={d:diaCorto.format(date),c:owmIcon(item.weather[0].id),
+                   desc:item.weather[0].main,lo:item.main.temp_min,
+                   hi:item.main.temp_max,pct:pop};
+    }else{
+      dayMap[key].lo=Math.min(dayMap[key].lo,item.main.temp_min);
+      dayMap[key].hi=Math.max(dayMap[key].hi,item.main.temp_max);
+      dayMap[key].pct=Math.max(dayMap[key].pct,pop);   // antes se quedaba con el primer slot
+    }
   });
-  const daily=Object.values(dayMap).slice(0,7).map((d,i)=>({...d,d:i===0?'Today':d.d,lo:Math.round(d.lo),hi:Math.round(d.hi)}));
+  const daily=Object.values(dayMap).slice(0,7)
+    .map((d,i)=>({...d,d:i===0?t('today'):d.d,lo:Math.round(d.lo),hi:Math.round(d.hi)}));
   const id=actual.weather[0].id;
   return{
     country:actual.sys.country,type:owmType(id),
@@ -1030,12 +1187,92 @@ function mapAPIData(actual,forecast){
     windDir:(['N','NE','E','SE','S','SW','W','NW'])[Math.round(actual.wind.deg/45)%8],
     vis:Math.round((actual.visibility||10000)/1000),pres:actual.main.pressure,
     sunrise:ts(actual.sys.sunrise),sunset:ts(actual.sys.sunset),
-    uv:0,aqi:0,hourly,daily
+    tz,lat:actual.coord.lat,lon:actual.coord.lon,
+    uv:extra.uv??null,aqi:extra.aqi??null,
+    hourly,daily
   };
+}
+
+/* ══════════════════════════════════
+   ESTADO VISIBLE
+══════════════════════════════════ */
+/* Antes un error solo llegaba a console.error: para el usuario la app
+   simplemente no reaccionaba. Ahora hay feedback en pantalla. */
+function setEstado(tipo,msg=''){
+  const box=document.getElementById('status');
+  const txt=document.getElementById('statusText');
+  if(!box) return;
+  document.body.classList.toggle('is-loading',tipo==='cargando');
+  if(tipo==='cargando'){
+    txt.textContent=msg||t('loading');
+    box.className='status status--load';
+  }else if(tipo==='error'){
+    txt.textContent=msg||t('errGeneric');
+    box.className='status status--err';
+    clearTimeout(setEstado._to);
+    setEstado._to=setTimeout(()=>box.className='status',5000);
+  }else{
+    box.className='status';
+  }
+}
+
+/* ══════════════════════════════════
+   PREFERENCIAS
+══════════════════════════════════ */
+const CLAVE='weather-app:prefs';
+
+function guardarPrefs(){
+  try{
+    localStorage.setItem(CLAVE,JSON.stringify({
+      cities:savedCities,unit,lang:currentLang,last:currentCity
+    }));
+  }catch{}   // modo privado o storage lleno: no es motivo para romper nada
+}
+
+function cargarPrefs(){
+  try{
+    const p=JSON.parse(localStorage.getItem(CLAVE)||'{}');
+    if(Array.isArray(p.cities)&&p.cities.length) savedCities=p.cities.slice(0,14);
+    if(p.unit==='f'){
+      unit='f';
+      const c=document.getElementById('btnC'), f=document.getElementById('btnF');
+      f.classList.add('active'); c.classList.remove('active');
+      f.setAttribute('aria-pressed','true'); c.setAttribute('aria-pressed','false');
+    }
+    if(p.lang&&STR[p.lang]) currentLang=p.lang;
+    return p.last||null;
+  }catch{ return null; }
 }
 
 /* ══════════════════════════════════
    INIT
 ══════════════════════════════════ */
-renderSavedList();
+async function init(){
+  const ultima=cargarPrefs();
+  applyLang();
+  document.documentElement.lang=currentLang;
+  renderSavedList();
+
+  // 1) la última ciudad vista, 2) geolocalización, 3) fallback
+  if(ultima){ fetchWeather(ultima); return; }
+
+  if(!navigator.geolocation){ fetchWeather('Buenos Aires'); return; }
+
+  setEstado('cargando',t('locating'));
+  navigator.geolocation.getCurrentPosition(
+    async pos=>{
+      const {latitude:lat,longitude:lon}=pos.coords;
+      try{
+        const r=await fetch(`${OWM}/weather?lat=${lat}&lon=${lon}&appid=${API_KEY}&units=metric&lang=${currentLang}`);
+        const j=await r.json();
+        if(r.ok&&j.name){ fetchWeather(j.name); return; }
+      }catch{}
+      fetchWeather('Buenos Aires');
+    },
+    ()=>fetchWeather('Buenos Aires'),          // permiso denegado o error
+    {timeout:8000,maximumAge:600000}
+  );
+}
+
+init();
 fetchWeather('Buenos Aires');
