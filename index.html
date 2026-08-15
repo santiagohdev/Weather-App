@@ -2,176 +2,233 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Weather — Clima en tiempo real</title>
-<meta name="description" content="App de clima en tiempo real con fondos animados que reaccionan a la condición actual, pronóstico horario, calidad del aire e índice UV.">
-<meta name="theme-color" content="#0a0a12">
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Weather</title>
+<meta name="description" content="The whole day at a glance — temperature curve, hourly and 7-day forecast.">
+<meta name="theme-color" content="#070A10">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Weather — Clima en tiempo real">
-<meta property="og:description" content="Fondos cinematográficos animados que reaccionan al clima, pronóstico horario interpolado, calidad del aire e índice UV.">
+<meta property="og:description" content="El día entero en una curva: temperatura hora a hora, pronóstico de 7 días, calidad del aire e índice UV.">
 <meta property="og:url" content="https://weather-app-santiago.vercel.app/">
 <meta name="twitter:card" content="summary_large_image">
 
-<link rel="stylesheet" href="style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@200;300;400;500;600&family=Geist+Mono:wght@300;400&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@200;300;400;500;600;700&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-sky="night-clear">
 
-<canvas id="scene" aria-hidden="true"></canvas>
+<!-- El cielo: gradiente + capas de luz difusa. Sin canvas de nubes. -->
+<div class="sky" aria-hidden="true">
+  <div class="sky-base"></div>
+  <div class="sky-glow sky-glow--a"></div>
+  <div class="sky-glow sky-glow--b"></div>
+  <div class="sky-stars"></div>
+  <canvas id="scene"></canvas>
+  <div class="sky-grain"></div>
+  <div class="sky-vignette"></div>
+</div>
 
-<!-- Estado de carga y errores. aria-live para que los lectores de pantalla
-     anuncien el resultado de una búsqueda sin tener que buscarlo. -->
 <div class="status" id="status" role="status" aria-live="polite">
   <span class="status__spin" aria-hidden="true"></span>
   <span id="statusText"></span>
 </div>
 
 <div id="app">
-  <section id="hero">
-    <div id="topbar">
-      <div class="lw" id="langWrap">
-        <button class="lb" id="langBtn" aria-label="Cambiar idioma" aria-haspopup="listbox"><span id="langFlag">🌐</span><span id="langName">EN</span><span class="la">›</span></button>
-        <div class="ld" id="langDropdown"></div>
+
+  <header id="topbar">
+    <div class="bar">
+      <div class="brand">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span class="brand-name">Weather</span>
       </div>
+
       <div class="sw">
-        <input class="si" id="searchInput" placeholder="Search any city..." autocomplete="off"
-               aria-label="Buscar ciudad" role="combobox" aria-expanded="false" aria-controls="searchDropdown">
-        <button class="sb" id="searchBtn" aria-label="Buscar">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><circle cx="8.5" cy="8.5" r="5.5" stroke="white" stroke-width="1.5"/><path d="M13 13L17 17" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg class="s-ico" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M13 13L17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input class="si" id="searchInput" placeholder="Search any city…" autocomplete="off" spellcheck="false"
+               aria-label="Buscar ciudad" role="combobox" aria-expanded="false" aria-controls="searchDropdown" aria-haspopup="listbox">
+        <button class="sb" id="searchBtn" aria-label="Search">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <div class="sd" id="searchDropdown"></div>
+        <div class="sd" id="searchDropdown" role="listbox"></div>
       </div>
-      <div class="ut">
-        <button class="ub active" id="btnC" aria-label="Grados Celsius" aria-pressed="true">°C</button>
-        <button class="ub" id="btnF" aria-label="Grados Fahrenheit" aria-pressed="false">°F</button>
+
+      <div class="tools">
+        <div class="lw" id="langWrap">
+          <button class="lb" id="langBtn" aria-label="Cambiar idioma" aria-expanded="false" aria-haspopup="listbox">
+            <span id="langFlag">🌐</span><span id="langName">EN</span>
+            <svg class="la" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="ld" id="langDropdown"></div>
+        </div>
+        <div class="ut" role="group" aria-label="Units">
+          <button class="ub active" id="btnC" aria-label="Grados Celsius" aria-pressed="true">°C</button>
+          <button class="ub" id="btnF" aria-label="Grados Fahrenheit" aria-pressed="false">°F</button>
+        </div>
       </div>
+    </div>
+  </header>
+
+  <!-- ─────────────────────────────── HERO ─────────────────────────────── -->
+  <section id="hero">
+    <div class="hero-grid">
+
+      <div class="now">
+        <div class="hc-loc">
+          <span class="ldot" aria-hidden="true"></span>
+          <span id="cityLabel">—</span><span id="countryLabel"></span>
+        </div>
+
+        <div class="now-read">
+          <div class="hc-temp fu" id="mainTemp">—</div>
+          <div class="wv" id="weatherVisual" aria-hidden="true"></div>
+        </div>
+
+        <div class="hc-cond" id="mainCond">—</div>
+
+        <div class="hc-hl">
+          <span id="mainH">—</span><span class="hl-sep" aria-hidden="true"></span><span id="mainL">—</span>
+        </div>
+      </div>
+
+      <!-- La pieza central: el día entero en una curva. -->
+      <figure class="curve" id="curveCard">
+        <figcaption class="curve-head">
+          <span class="curve-t" id="lbl-curve">Today’s temperature</span>
+          <span class="curve-legend"><i class="lg-dot"></i><span id="curveNowLbl">now</span></span>
+        </figcaption>
+        <div class="curve-plot" id="curvePlot"></div>
+      </figure>
+
+      <div class="metrics" id="hero-stats">
+        <div class="hs-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13.5V5a2 2 0 1 1 4 0v8.5a4 4 0 1 1-4 0z"/><path d="M12 9.5v6"/></svg>
+          <span class="hs-lbl" id="hs-lbl-feels">Feels</span><span class="hs-val" id="hs-feels">—</span>
+        </div>
+        <div class="hs-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+          <span class="hs-lbl" id="hs-lbl-wind">Wind</span><span class="hs-val" id="hs-wind">—</span>
+        </div>
+        <div class="hs-pill" id="hs-rain-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16.6A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"/><path d="M8 17v2M12 18v3M16 17v2"/></svg>
+          <span class="hs-lbl">Rain</span><span class="hs-val" id="hs-rain">—</span>
+        </div>
+        <div class="hs-pill">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s5.5 6.2 5.5 9.8A5.5 5.5 0 0 1 6.5 12.8C6.5 9.2 12 3 12 3z"/></svg>
+          <span class="hs-lbl">Humidity</span><span class="hs-val" id="hs-hum">—</span>
+        </div>
+      </div>
+
+      <div class="cities">
+        <div class="saved-list" id="savedList"></div>
+      </div>
+
     </div>
 
-    <div id="hero-center">
-      <div class="hc-loc"><div class="ldot"></div><span id="cityLabel">—</span><span id="countryLabel" style="opacity:.35;margin-left:2px"></span></div>
-      <div class="hc-temp fu" id="mainTemp">—</div>
-      <div class="hc-cond" id="mainCond">—</div>
-      <div class="hc-hl"><span id="mainH">—</span><span style="opacity:.25;margin:0 5px">·</span><span id="mainL">—</span></div>
+    <!-- lo mantiene vivo el JS aunque ya no se dibuje en el hero -->
+    <div class="hh-wrap" hidden>
+      <button class="hh-arrow" id="hhPrev" aria-label="Horas anteriores"></button>
+      <div class="hh-scroll" id="hhScroll"></div>
+      <button class="hh-arrow" id="hhNext" aria-label="Horas siguientes"></button>
     </div>
 
-    <div id="hero-bot">
-      <div class="wv" id="weatherVisual"></div>
-      <div class="sh"><span id="scrollHint">scroll</span><div class="sha">↓</div></div>
-    </div>
-
-    <!-- Hero quick stats pills -->
-    <div id="hero-stats">
-      <div class="hs-pill">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2a5 5 0 0 1 5 5c0 4-5 11-5 11S7 11 7 7a5 5 0 0 1 5-5z"/><circle cx="12" cy="7" r="2"/></svg>
-        <span class="hs-lbl" id="hs-lbl-feels">Feels</span>
-        <span class="hs-val" id="hs-feels">—</span>
-      </div>
-      <div class="hs-pill">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
-        <span class="hs-lbl" id="hs-lbl-wind">Wind</span>
-        <span class="hs-val" id="hs-wind">—</span>
-      </div>
-      <div class="hs-pill" id="hs-rain-pill">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25M8 16h.01M8 20h.01M12 18h.01M12 22h.01M16 16h.01M16 20h.01"/></svg>
-        <span class="hs-lbl">Rain</span>
-        <span class="hs-val" id="hs-rain">—</span>
-      </div>
-      <div class="hs-pill">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2a5 5 0 0 1 5 5c0 4-5 11-5 11S7 11 7 7a5 5 0 0 1 5-5z"/></svg>
-        <span class="hs-lbl">Humidity</span>
-        <span class="hs-val" id="hs-hum">—</span>
-      </div>
-    </div>
-
-    <!-- Hero hourly bar -->
-    <div id="hero-hourly">
-      <div class="hh-wrap">
-        <button class="hh-arrow" id="hhPrev" aria-label="Horas anteriores">‹</button>
-        <div class="hh-scroll" id="hhScroll"></div>
-        <button class="hh-arrow" id="hhNext" aria-label="Horas siguientes">›</button>
-      </div>
-    </div>
-
-    <div id="cities-row">
-      <div class="saved-list" id="savedList"></div>
-    </div>
+    <div class="sh"><span id="scrollHint">scroll</span><span class="sha" aria-hidden="true"></span></div>
   </section>
 
+  <!-- ────────────────────────────── DETALLE ───────────────────────────── -->
   <section id="details">
-    <div class="qstats glass">
-      <div class="qi">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-        <div class="qi-lbl" id="lbl-feels">Real feel</div>
-        <div class="qi-val" id="diFeels">—</div>
-        <div class="qi-sub" id="diFeelsSub">—</div>
-      </div>
-      <div class="qi">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 1 5 5c0 4-5 11-5 11S7 11 7 7a5 5 0 0 1 5-5z"/><circle cx="12" cy="7" r="2"/></svg>
-        <div class="qi-lbl" id="lbl-hum">Humidity</div>
-        <div class="qi-val" id="diHum">—</div>
-        <div class="qi-sub" id="diHumSub">—</div>
-      </div>
-      <div class="qi">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
-        <div class="qi-lbl" id="lbl-wind">Wind</div>
-        <div class="qi-val" id="diWind">—</div>
-        <div class="qi-sub" id="diWindSub">—</div>
-      </div>
-      <div class="qi">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        <div class="qi-lbl" id="lbl-vis">Visibility</div>
-        <div class="qi-val" id="diVis">—</div>
-        <div class="qi-sub" id="diVisSub">—</div>
-      </div>
-    </div>
+    <div class="wrap">
 
-    <div class="block glass">
-      <div class="blbl" id="lbl-hourly">Hourly forecast</div>
-      <div class="hourly-outer">
-        <div class="hscroll" id="hourlyRow"></div>
-      </div>
-    </div>
-
-    <div class="block glass">
-      <div class="blbl" id="lbl-7day">7-day forecast</div>
-      <div id="forecastList"></div>
-      <div id="dayDetail" style="display:none"></div>
-    </div>
-
-    <div class="bgrid">
-      <div class="block glass">
-        <div class="blbl" id="lbl-aqi">Air quality</div>
-        <div class="aqi-top"><div class="aqi-n" id="aqiNum">—</div><div class="aqi-s"><div class="aqi-w" id="aqiWord">—</div><div class="aqi-u">AQI</div></div></div>
-        <div class="aqi-tr"><div class="aqi-dot" id="aqiDot" style="left:0%"></div></div>
-        <div class="aqi-sc"><span>0</span><span>100</span><span>200</span><span>300</span><span>400+</span></div>
-      </div>
-      <div class="block glass">
-        <div class="blbl" id="lbl-sun">Sun</div>
-        <div class="sun-row">
-          <div class="sun-i"><div class="sun-l" id="lbl-sunrise">Sunrise</div><div class="sun-v" id="sunriseVal">—</div></div>
-          <div class="sun-i"><div class="sun-l" id="lbl-sunset">Sunset</div><div class="sun-v" id="sunsetVal">—</div></div>
+      <div class="qstats">
+        <div class="qi">
+          <div class="qi-top">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+            <div class="qi-lbl" id="lbl-feels">Real feel</div>
+          </div>
+          <div class="qi-val" id="diFeels">—</div><div class="qi-sub" id="diFeelsSub">—</div>
         </div>
-        <svg class="sun-arc" viewBox="0 0 200 80" xmlns="http://www.w3.org/2000/svg">
-          <defs><filter id="glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-          <path class="arc-t" d="M10,70 Q100,-10 190,70"/>
-          <path class="arc-f" id="arcFill" d="M10,70 Q100,-10 190,70"/>
-          <circle class="arc-d" id="arcDot" cx="10" cy="70" r="5" filter="url(#glow)"/>
-        </svg>
-        <div class="dl" id="dayLength">—</div>
+        <div class="qi">
+          <div class="qi-top">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s5.5 6.2 5.5 9.8A5.5 5.5 0 0 1 6.5 12.8C6.5 9.2 12 3 12 3z"/></svg>
+            <div class="qi-lbl" id="lbl-hum">Humidity</div>
+          </div>
+          <div class="qi-val" id="diHum">—</div><div class="qi-sub" id="diHumSub">—</div>
+        </div>
+        <div class="qi">
+          <div class="qi-top">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+            <div class="qi-lbl" id="lbl-wind">Wind</div>
+          </div>
+          <div class="qi-val" id="diWind">—</div><div class="qi-sub" id="diWindSub">—</div>
+        </div>
+        <div class="qi">
+          <div class="qi-top">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <div class="qi-lbl" id="lbl-vis">Visibility</div>
+          </div>
+          <div class="qi-val" id="diVis">—</div><div class="qi-sub" id="diVisSub">—</div>
+        </div>
       </div>
-      <div class="block glass">
-        <div class="blbl" id="lbl-uv">UV Index</div>
-        <div class="uv-n" id="uvNum">—</div>
-        <div class="uv-d" id="uvWord">—</div>
-        <div class="uv-s" id="uvSub">—</div>
-        <div class="uv-bar"></div>
-        <div class="uv-sc"><span>Low</span><span>Moderate</span><span>High</span><span>Extreme</span></div>
+
+      <div class="block">
+        <div class="blbl" id="lbl-hourly">Hourly forecast</div>
+        <div class="hourly-outer"><div class="hscroll" id="hourlyRow"></div></div>
       </div>
+
+      <div class="block">
+        <div class="blbl" id="lbl-7day">7-day forecast</div>
+        <div id="forecastList"></div>
+        <div id="dayDetail" style="display:none"></div>
+      </div>
+
+      <div class="bgrid">
+        <div class="block">
+          <div class="blbl" id="lbl-aqi">Air quality</div>
+          <div class="aqi-top">
+            <div class="aqi-n" id="aqiNum">—</div>
+            <div class="aqi-s"><div class="aqi-w" id="aqiWord">—</div><div class="aqi-u">US AQI</div></div>
+          </div>
+          <div class="aqi-tr"><div class="aqi-dot" id="aqiDot" style="left:0%"></div></div>
+          <div class="aqi-sc"><span>0</span><span>100</span><span>200</span><span>300</span><span>400+</span></div>
+        </div>
+
+        <div class="block">
+          <div class="blbl" id="lbl-sun">Sun</div>
+          <svg class="sun-arc" viewBox="0 0 200 84" aria-hidden="true">
+            <defs><filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+            <line class="arc-ground" x1="6" y1="70.5" x2="194" y2="70.5"/>
+            <path class="arc-t" d="M10,70 Q100,-6 190,70"/>
+            <path class="arc-f" id="arcFill" d="M10,70 Q100,-6 190,70"/>
+            <circle class="arc-d" id="arcDot" cx="10" cy="70" r="4.5" filter="url(#glow)"/>
+          </svg>
+          <div class="sun-row">
+            <div class="sun-i"><div class="sun-l" id="lbl-sunrise">Sunrise</div><div class="sun-v" id="sunriseVal">—</div></div>
+            <div class="sun-i sun-i--r"><div class="sun-l" id="lbl-sunset">Sunset</div><div class="sun-v" id="sunsetVal">—</div></div>
+          </div>
+          <div class="dl" id="dayLength">—</div>
+        </div>
+
+        <div class="block">
+          <div class="blbl" id="lbl-uv">UV Index</div>
+          <div class="uv-top"><div class="uv-n" id="uvNum">—</div><div class="uv-d" id="uvWord">—</div></div>
+          <div class="uv-s" id="uvSub">—</div>
+          <div class="uv-bar"></div>
+          <div class="uv-sc"><span>Low</span><span>Moderate</span><span>High</span><span>Extreme</span></div>
+        </div>
+      </div>
+
+      <footer class="foot">
+        <span>OpenWeather · Open-Meteo</span>
+        <span class="foot-dot" aria-hidden="true"></span>
+        <a href="https://santiagohermosilla.com" target="_blank" rel="noopener">santiagohermosilla.com</a>
+      </footer>
+
     </div>
   </section>
 </div>
+
 <script src="script.js"></script>
+<script src="ui.js"></script>
 </body>
 </html>
